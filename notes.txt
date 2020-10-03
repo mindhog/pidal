@@ -1,0 +1,119 @@
+Notes on creating a guitar effects pedal from R-Pi
+
+Starting jack:
+
+    jackd -d alsa -d hw:CARD=S3,DEV=0
+
+
+Experiments with Carla
+======================
+
+    sudo apt-get install liblo-dev libasound2-dev
+    git clone https://github.com/falkTX/Carla.git
+
+Added:
+    sudo apt-get install python3-pyqt5.qtsvg pyqt5-dev-tools
+
+Changed BASE_OPTS in source/Makefile.mk like:
+
+    -BASE_OPTS  = -O3 -ffast-math -mtune=generic -msse -msse2 -mfpmath=sse -fdata-sections -ffunction-sections
+    +BASE_OPTS  = -O3 -ffast-math -mtuneN=cortex-a53 -fdata-sections -ffunction-sections
+
+(basically change -mtune from generic to cortex-a53 [the pi's chip] and
+removed the sse stuff that gcc doesn't recognize)
+
+
+    make PREFIX=$HOME/.local
+    make PREFIX=$HOME/.local install
+
+
+Run this to run in headless mode:
+
+    ~/.local/bin/carla -n
+
+
+port 22752
+
+
+Setting up R-Pi
+===============
+
+Got latest raspbian (Raspberry Pi OS, now).  Unzip and mount the image with
+read-write, touch an "ssh" file in the root directory to enable ssh.
+
+Do:
+
+    wget https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/master/adafruit-pitft.sh
+    chmod +x adafruit-pitft.sh
+    sudo ./adafruit-pitft.sh
+
+Change the password:
+    passwd
+    [enter new password]
+
+Copy your ssh key to ~pi/.ssh/authorized_keys
+
+Set window manager to ratpoison:
+
+    sudo apt-get install ratpoison
+
+    sudo update-alternatives --config x-session-manager
+    [select /usr/bin/ratpoison]
+
+    $ echo exec ratpoison > ~/.xsession
+    $ chmod 755 ~/.xsession
+    $ echo
+
+Fix the touchscreen driver if it's broken:
+
+-   Get the source from https://github.com/raspberrypi/linux/blob/rpi-5.4.y/arch/arm/boot/dts/overlays/pitft28-resistive-overlay.dts
+-   Rebuild:
+
+    $ dtc -I dts -O dtb pitft28-resistive-overlay.dts -o pitft28-resistive.dtbo
+    $ sudo mv /boot/overlayfs/pitft28-resistive.dtbo \
+        /boot/overlayfs/pitft28-resistive.dtbo.org
+    $ sudo cp pitft28-resistive.dtbo /boot/overlayfs/pitft28-resistive.dtbo
+-   Reboot.
+
+Uninstall piwiz (the install program):
+
+    $ sudo apt-get remove piwiz
+
+Install x11-xserver-utils (for xrdb):
+
+    $ sudo apt-get install x11-xserver-utils
+
+Setting up guitarix/rakarrack
+=============================
+
+    $ apt-get install guitarix rakarrack
+
+Setting up my code
+==================
+
+    # apt-get install swig libasound2-dev a2jmidid tmux
+    # python setup.py install
+    # python3 -m pip install cffi
+    # python3 -m pip install NumPy
+    # python3 -m pip install JACK-Client
+    # pip3 install attrs
+
+    For rak+:
+    $ apt-get install libxpm-dev libfltk1.3-dev libjack-jackd2-dev \
+      libsndfile1-dev libsamplerate0-dev libasound2-dev libxft-dev \
+      libfftw3-dev lv2-dev
+    $ git clone ssh://192.168.1.11/home/mmuller/w2/rakarrack-plus
+mkdir build, cd build, cmake .., make -j4
+
+Add this line to /etc/rc.local:
+
+    su pi -c tmux new -ds pidal /home/pi/run.sh
+
+Where to go Next
+================
+
+-   get configs and rakarrack working
+-   get touchscreen buttons working
+-   state vectors
+-   investigate https://github.com/moddevices/mod-host
+-   UI

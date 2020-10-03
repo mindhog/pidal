@@ -1,0 +1,29 @@
+
+4 buttons - Exit, Up, Down, Enter
+
+The pidal has a "config" which is the current configuration of everything in
+the unit, including what actions all of the footswitches are assigned to.
+Each config has a name that is prominently displayed on the home screen.
+
+Home screen:
+    Shows current config and a row of footswitch statuses on the bottom.  E.g.
+
+
+             Social Robot
+
+
+            +----+----+----+----+
+            |Dist|Wah |Phas|Lead|
+            +----+----+----+----+
+
+    footswitch statuses change color when the button is engaged.
+
+    This is the default mode that the system comes up in.
+    Exit - show main menu
+    Up/Down - next/prev config
+    Enter - unused
+
+Menu:
+
+    Edit Config
+    List Configs
