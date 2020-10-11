@@ -88,10 +88,16 @@ Setting up guitarix/rakarrack
 
     $ apt-get install guitarix rakarrack
 
+Notes on Guitarix
+-----------------
+
+-   Stereo effects go after the second amp block, mono effects before it.
+-   Wah works better before Fuzz.
+
 Setting up my code
 ==================
 
-    # apt-get install swig libasound2-dev a2jmidid tmux
+    # apt-get install swig libasound2-dev a2jmidid tmux lingot
     # python setup.py install
     # python3 -m pip install cffi
     # python3 -m pip install NumPy
@@ -105,6 +111,9 @@ Setting up my code
     $ git clone ssh://192.168.1.11/home/mmuller/w2/rakarrack-plus
 mkdir build, cd build, cmake .., make -j4
 
+    Configure lingot to run on jack on a server, then copy
+    ~/.lingot/lingot.conf to the pi.
+
 Add this line to /etc/rc.local:
 
     su pi -c tmux new -ds pidal /home/pi/run.sh
@@ -112,8 +121,17 @@ Add this line to /etc/rc.local:
 Where to go Next
 ================
 
--   get configs and rakarrack working
--   get touchscreen buttons working
+-   Exiting from the list menu doesn't seem to leave the buttons in a good
+    state.
+-   Restore of configs doesn't work (switches are out of sync with actual
+    config)
+-   Scrolling past the end or beginning in list menus is broken
+-   When switching to the config list, start with the current config selected.
+-   what we're seeing when we timeout on rak (before our time):
+    xxx time is 1602024441.676982 waiting until 1602025041.6769772
+    xxx timed out at 1602196977.9232273
+    What is clearly happening here is that we're getting an NTP sync while
+    we're waiting for rak!
 -   state vectors
 -   investigate https://github.com/moddevices/mod-host
 -   UI

@@ -60,6 +60,7 @@ class Engine:
         self.__microswitches : List[Callable[[], None]] = \
             [None, None, None, None]
         self.__ms_stack = [self.__microswitches]
+        self.__fs_stack = [self.__footswitches]
 
         self.seq = amidi.getSequencer(name = 'pidal')
         self.jack = jack.Client('pidal')
@@ -69,7 +70,6 @@ class Engine:
         self.__async_thread = threading.Thread(target=self.__async_thread_func)
         self.__async_thread.setDaemon(True)
         self.__async_thread.start()
-        print('xxx started background thread')
 
     def __async_thread_func(self):
         asyncio.run(self.__fs_mon())
@@ -89,7 +89,6 @@ class Engine:
                         self.__fs_pressed[i] = False
                         handler = self.__footswitches[i]
                         if handler:
-                            print(f'xxx button {i} released')
                             handler(False)
 
     def register_footswitch(self, footswitch: int,
@@ -133,6 +132,17 @@ class Engine:
             # This is a hack, for some reason we're bottoming out.
             print('hit bottom')
         self.__microswitches = self.__ms_stack[-1]
+
+    def push_fs(self):
+        self.__footswitches = [None, None, None, None]
+        self.__fs_stack.append(self.__footswitches)
+
+    def pop_fs(self):
+        if len(self.__fs_stack) > 1:
+            self.__fs_stack.pop()
+        else:
+            print('hit bottom on footswitch stack')
+        self.__footswitches = self.__fs_stack[-1]
 
     def register_microswitch(self, index: int,
                              callback: Callable[[], None]
@@ -189,11 +199,13 @@ class Engine:
 
     def wait_for_jack(self, port_name: str, timeout: float =3.0):
         end_time = time.time() + timeout
+        print(f'xxx time is {time.time()} waiting until {end_time}')
         while time.time() < end_time:
             for port in self.jack.get_ports():
                 if port.name == port_name:
                     return
             time.sleep(0.1)
+        print(f'xxx timed out at {time.time()}')
         raise Exception('timed out waiting for %s' % port_name)
 
     def wait_for_midi(self, port_name: str, timeout: float = 5.0):
@@ -243,7 +255,7 @@ class Engine:
     def notify(self, event: str, *args) -> None:
         handler = self.subscriptions.get(event)
         if handler:
-            self.subscriptions[event](args[0])
+            self.subscriptions[event](*args)
 
     @classmethod
     def get_instance(cls):

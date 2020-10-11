@@ -24,6 +24,11 @@ setterm -blank 0 -powersave off -powerdown 0 </dev/tty1
 jackd -d alsa -d hw:CARD=S3,DEV=0 -p 128 &
 jack_pid=$?
 
+# Start rak (since it takes a really long time to startup)
+if ! jack_lsp | grep rakarrack >/dev/null; then
+    rakarrack-plus -n -p 6 &
+fi
+
 while true; do
     python3 main.py
 done

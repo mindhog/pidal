@@ -1,11 +1,20 @@
 """Hog 1 Pidal User interface."""
 
 import attr
-from engine import Config, Engine
-from typing import Callable, List, Optional
+from engine import Config, Engine, ProcessManager
+from typing import Any, Callable, List, Optional
 from tkinter import Button, Frame, Label, Listbox, Tk, Toplevel, BOTH, END, \
     NSEW, W
+import subprocess
 from tkinter.font import Font
+
+def fs_pressed(action: Callable[[], None]) -> Callable[[bool], Any]:
+    """Returns a handler that calls 'action' only when the button is pressed.
+    """
+    def handler(pressed: bool):
+        if pressed:
+            action()
+    return handler
 
 @attr.s
 class MenuItem:
@@ -27,9 +36,18 @@ class Menu(Listbox):
         engine = Engine.get_instance()
         engine.push_switch_configs()
         engine.register_microswitch(0, self.close)
-        engine.register_microswitch(1, self.select_last)
+        engine.register_microswitch(1, self.select_prev)
         engine.register_microswitch(2, self.select_next)
         engine.register_microswitch(3, self.selected)
+
+        self.selection_set(0)
+
+        engine = Engine.get_instance()
+        engine.push_fs()
+        engine.register_footswitch(0, fs_pressed(self.select_prev))
+        engine.register_footswitch(1, fs_pressed(self.select_next))
+        engine.register_footswitch(2, fs_pressed(self.selected))
+        engine.register_footswitch(3, fs_pressed(self.close))
 
         # Just to simplify navigation
         self.bind('<Escape>', self.close)
@@ -45,16 +63,20 @@ class Menu(Listbox):
 
     def select_next(self):
         cur = self.__get_selection()
-        self.selection_clear(cur)
-        self.selection_set(cur + 1)
+        if cur < len(self.data) - 1:
+            self.selection_clear(cur)
+            self.selection_set(cur + 1)
 
-    def select_last(self):
+    def select_prev(self):
         cur = self.__get_selection()
-        self.selection_clear(cur)
-        self.selection_set(cur - 1)
+        if cur:
+            self.selection_clear(cur)
+            self.selection_set(cur - 1)
 
     def close(self):
-        Engine.get_instance().pop_switch_configs()
+        engine = Engine.get_instance()
+        engine.pop_switch_configs()
+        engine.pop_fs()
         self.destroy()
 
     def selected(self, *evt) -> Optional[str]:
@@ -76,6 +98,31 @@ def list_configs_selected(screen: 'Screen') -> None:
         for config in engine.get_all_configs()
     ]
     menu = Menu(screen, items)
+
+def restart_shell_selected(screen: 'Screen') -> None:
+    screen.destroy()
+
+def shutdown_selected(screen: 'Screen') -> None:
+    subprocess.call(['sudo', 'shutdown', '-h', 'now'])
+
+# XXX Put this in another module.
+
+pre_tuner_config = None
+tuner_proc = None
+
+def end_tuner(pressed: bool) -> None:
+    global tuner_proc
+    tuner_proc = None
+    Engine.get_instance().set_config(pre_tuner_config)
+
+def tuner_selected(screen: 'Screen') -> None:
+    global pre_tuner_config, tuner_proc
+    engine = Engine.get_instance()
+    pre_tuner_config = engine.cur_config
+    engine.set_config(Config('Tuner'))
+    tuner_proc = ProcessManager(subprocess.Popen(['lingot']))
+    for i in range(4):
+        engine.register_footswitch(i, end_tuner)
 
 class FSButton(Button):
     """Panel to show the state of a footswitch button."""
@@ -110,16 +157,36 @@ class Home(Frame):
         engine.subscribe('config_change', self.on_config_change)
         engine.register_microswitch(0, self.show_menu)
 
+        engine.subscribe('pedal_button_status', self.on_pedal_button_status)
+        engine.subscribe('config_list',
+                         lambda scr=top: list_configs_selected(scr))
+
     def show_menu(self, *args):
         items = [MenuItem('Edit Config', edit_config_selected),
-                MenuItem('List Configs', list_configs_selected)
-                ]
+                 MenuItem('List Configs', list_configs_selected),
+                 MenuItem('Tuner', tuner_selected),
+                 MenuItem('Restart Shell', restart_shell_selected),
+                 MenuItem('Shutdown', shutdown_selected),
+                 ]
         menu = Menu(self.winfo_toplevel(), items)
 
     def on_config_change(self, config: Config) -> None:
         self.title.configure(text=config.name)
         for i, button_name in enumerate(config.buttons):
             self.buttons[i].set_title(button_name)
+            self.buttons[i].configure(foreground='LawnGreen',
+                                      background='black'
+                                      )
+
+    def on_pedal_button_status(self, pedal: int, active: bool) -> None:
+        if active:
+            self.buttons[pedal].configure(background='darkgreen',
+                                          foreground='yellow'
+                                          )
+        else:
+            self.buttons[pedal].configure(background='black',
+                                          foreground='LawnGreen'
+                                          )
 
 class Screen(Tk):
 
