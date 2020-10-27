@@ -23,9 +23,11 @@ class MenuItem:
 
 class Menu(Listbox):
 
-    def __init__(self, parent: Frame, data: List[MenuItem]):
+    def __init__(self, parent: Frame, data: List[MenuItem],
+                 selection_box: Optional[List[int]] = None):
         super().__init__(parent, font=Font(family='Liberation Sans', size=48))
         self.data = data
+        self.selbox = selection_box if selection_box is not None else []
 
         for item in data:
             self.insert(END, item.text)
@@ -40,7 +42,10 @@ class Menu(Listbox):
         engine.register_microswitch(2, self.select_next)
         engine.register_microswitch(3, self.selected)
 
-        self.selection_set(0)
+        index = \
+            self.selbox[0] if self.selbox and self.selbox[0] < len(data) else 0
+
+        self.selection_set(index)
 
         engine = Engine.get_instance()
         engine.push_fs()
@@ -56,9 +61,8 @@ class Menu(Listbox):
         cur = self.curselection()
         if cur:
             cur = cur[0]
-            self.selection_clear(cur)
         else:
-            cur = 0
+            cur = -1
         return cur
 
     def select_next(self):
@@ -82,6 +86,7 @@ class Menu(Listbox):
     def selected(self, *evt) -> Optional[str]:
         selections = self.curselection()
         if selections:
+            self.selbox[:] = [selections[0]]
             item = self.data[selections[0]]
             toplevel = self.winfo_toplevel()
             self.close()
@@ -91,13 +96,15 @@ class Menu(Listbox):
 def edit_config_selected(screen: 'Screen') -> None:
     print('got menu')
 
+last_config_selected = []
+
 def list_configs_selected(screen: 'Screen') -> None:
     engine = Engine.get_instance()
     items = [
         MenuItem(config.name, lambda s, cfg=config: engine.set_config(cfg))
         for config in engine.get_all_configs()
     ]
-    menu = Menu(screen, items)
+    menu = Menu(screen, items, last_config_selected)
 
 def restart_shell_selected(screen: 'Screen') -> None:
     screen.destroy()
