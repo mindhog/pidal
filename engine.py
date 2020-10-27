@@ -121,6 +121,10 @@ class Engine:
             self.__fs_pressed[index] = True
         self.__last_press[index] = t
 
+    def is_fs_pressed(self, index: int) -> bool:
+        """Returns true if the footswitch is currently pressed."""
+        return self.__fs_pressed[index]
+
     def push_switch_configs(self):
         self.__microswitches = [None, None, None, None]
         self.__ms_stack.append(self.__microswitches)
