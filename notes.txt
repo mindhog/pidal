@@ -88,6 +88,14 @@ Setting up guitarix/rakarrack
 
     $ apt-get install guitarix rakarrack
 
+Don't actually install rakarrack, see my notes below under "setting up my
+code".
+
+To get the user bank to come up as default, you must change the
+~/.fltk/github.com.Stazed.rakarrack.plus/rakarrack-plus.prefs file's "Bank
+Filename" parameter to the location of your user bank. (Note, I had to create
+this file myself, it didn't exist prior to that)
+
 Notes on Guitarix
 -----------------
 
