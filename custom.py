@@ -1,9 +1,10 @@
 
 import abc
 from midi import ControlChange, ProgramChange
+from modhost import ModHost
 from subprocess import Popen
 import threading
-from typing import Callable
+from typing import Callable, List, Optional
 from engine import Config, Engine, ProcessManager
 from util import Actuator, ConfigFramework, FlagSetController
 
@@ -78,6 +79,11 @@ engine.wait_for_jack('gx_head_amp:in_0')
 engine.wait_for_jack('gx_head_fx:out_0')
 engine.wait_for_jack('gx_head_fx:out_1')
 
+# Load mod-host
+modd = ProcessManager(Popen(['mod-host', '-n']))
+engine.wait_for_jack('mod-host:midi_in')
+mod_host = ModHost()
+
 # load Rakarrack and disconnect it from input.  The "-p 1" combined with -n
 # brings jack up in "FX On" mode.
 # XXX Starting this in the outer run.sh script, makes things easier for
@@ -118,6 +124,111 @@ class FirstConfig(Config):
 
     def on_leave(self):
         engine.jack_disconnect_all('gx_head_amp:in_0', False)
+
+
+class ModConfig(Config):
+    """
+
+    Commands are:
+        name <words>...
+        pedal <index> <name> <action>
+    """
+
+    def __init__(self, name: str, buttons: List[str],
+                 actions: List[Optional[str]],
+                 on_enter: Optional[str],
+                 on_leave: Optional[str]) -> None:
+        super().__init__(name)
+        self.buttons = buttons
+        self.actions = actions
+        self.button_states = [False] * 4
+        self.on_enter_block = on_enter
+        self.on_leave_block = on_leave
+
+    def on_button(self, index: int, pressed: bool) -> None:
+        # Currently assuming that actions are just effect identifiers to
+        # toggle on and off.
+        if pressed and self.actions[index]:
+            if self.button_states[index]:
+                mod_host.bypass(int(self.actions[index]), True)
+                self.button_states[index] = False
+            else:
+                mod_host.bypass(int(self.actions[index]), False)
+                self.button_states[index] = True
+            engine.notify('pedal_button_status', index,
+                          self.button_states[index])
+
+    def on_enter(self):
+        if self.on_enter_block:
+            mod_host.send_block(self.on_enter_block)
+
+        engine.register_footswitch(0, lambda x: self.on_button(0, x))
+        engine.register_footswitch(1, lambda x: self.on_button(1, x))
+        engine.register_footswitch(
+            2,
+            double_press(lambda x: self.on_button(2, x),
+                         show_config_list,
+                         3
+                         )
+        )
+        engine.register_footswitch(
+            3,
+            double_press(lambda x: self.on_button(3, x),
+                         show_config_list,
+                         2
+                         )
+        )
+
+    def on_leave(self):
+        if self.on_leave_block:
+            mod_host.send_block(self.on_leave_block)
+
+    @classmethod
+    def read_file(self, filename: str) -> 'ModConfig':
+        src = open(filename)
+
+        name = None
+        buttons = ['1', '2', '3', '4']
+        actions = [None] * 4
+        on_enter = None
+        on_leave = None
+
+        def read_block():
+            result = []
+            for line in src:
+                if line.strip() == '}':
+                    return ''.join(result)
+                result.append(line)
+            raise Exception('End of line encountered in block')
+
+        def parse_cmd_or_block(args):
+            if args[0] == '{':
+                return read_block()
+            else:
+                return ' '.join(args)
+
+        for line in src:
+            cmd = line.rstrip().split()
+            if not cmd or cmd[0].startswith('#'):
+                continue
+
+            if cmd[0] == 'name':
+                name = ' '.join(cmd[1:])
+            elif cmd[0] == 'pedal':
+                num = int(cmd[1])
+                button_name = cmd[2]
+                action = parse_cmd_or_block(cmd[3:])
+                print(f'index is {num}')
+                buttons[num] = button_name
+                actions[num] = action
+            elif cmd[0] == 'on_enter':
+                on_enter = parse_cmd_or_block(cmd[1:])
+            elif cmd[0] == 'on_leave':
+                on_leave = parse_cmd_or_block(cmd[1:])
+            else:
+                raise Exception(f'Unknown command: {cmd[0]}')
+
+        return ModConfig(name, buttons, actions, on_enter, on_leave)
 
 class GuitarixSimple(Config):
 
@@ -296,6 +407,7 @@ class NewConfig(ConfigFramework):
 simple = GuitarixSimple()
 engine.set_config(simple)
 engine.add_config(simple)
+engine.add_config(ModConfig.read_file('SimpleClean.modcfg'))
 engine.add_config(FirstConfig())
 engine.add_config(NewConfig())
 

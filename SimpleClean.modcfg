@@ -1,0 +1,103 @@
+# This is a simple config intended as an illustration of how mod configs work. 
+# It doesn't sound very good and will change with little notice.  Eventually 
+# all of the custom configuration should move out of this repository entirely: 
+# configurations are user-specific.
+#
+# Any line beginning with a "#" is a comment, comments can not yet be used in the 
+# blocks to be sent to mod-host (on_enter, on_leave).
+
+# The "name" command names the configuration.
+name Mod Simple Clean
+
+# The pedal commands.  These configure the footswitches for the config.  The 
+# arguments are "pedal index", "button name", and (currently) the id of the 
+# mod-host effect to enable/disable bypass on.  This last argument is going to 
+# change, we want to be able to do more than bypass with it.
+pedal 0 Dist 3
+pedal 1 Wah 2
+pedal 2 Cho 5
+pedal 3 Rev 6
+
+# "on_enter" defines a block of commands to send to mod-host when the config 
+# is selected.
+on_enter {
+    add http://guitarix.sourceforge.net/plugins/gx_compressor#_compressor 1
+    param_set 1 ATTACK 0.002
+    param_set 1 KNEE 6.9
+    param_set 1 RATIO 2.235
+    param_set 1 RELEASE 0
+    param_set 1 THRESHOLD -27.95
+    bypass 1 1
+    add http://guitarix.sourceforge.net/plugins/gx_colwah_#_colwah_ 2
+    connect effect_1:out effect_2:in
+    param_set 2 WAH 0.565
+    param_set 2 FREQ 24
+    param_set 2 MODE auto
+    param_set 2 MODEL colwah
+    param_set 2 WET_DRY 100
+    bypass 2 1
+    add http://guitarix.sourceforge.net/plugins/gx_fumaster_#_fumaster_ 3
+    param_set 3 TONE 0.5198
+    param_set 3 VOLUME 0.125
+    param_set 3 WET_DRY 100
+    connect effect_2:out effect_3:in
+    bypass 3 1
+    add http://guitarix.sourceforge.net/plugins/gx_amp_stereo#GUITARIX_ST 4
+    param_set 4 PreGain -7.5
+    param_set 4 MasterGain 12.2
+    param_set 4 Distortion 0
+    param_set 4 Drive 0.66
+    param_set 4 Middle 0.5
+    param_set 4 Bass 0.675
+    param_set 4 Treble 0.725
+    param_set 4 Cabinet "12ax7 feedback"
+    param_set 4 Cabinet "12ax7 feedbackx"
+    param_set 4 Cabinet "12ax7 feedback"
+    param_set 4 Cabinet 12ax7 feedback
+    param_set 4 Cabinet "12ax7 feedback"
+    param_set 4 Presence 4.5
+    param_set 4 Model "Mesa Boogie"
+    param_set 4 Model 
+    param_set 4 Model "Mesa Boogie Style"
+    param_set 4 Tonestack "Mesa Boogie Style"
+    param_set 4 model "Mesa Boogie Style"
+    param_set 4 c_model "12ax7 feedback"
+    param_set 4 t_model "Mesa Boogie Style"
+    connect effect_3:out effect_4:in
+    connect effect_3:out effect_4:in1
+    add http://guitarix.sourceforge.net/plugins/gx_chorus_stereo#_chorus_stereo 5
+    param_set 5 level 0.809079
+    param_set 5 delay 0.0292509
+    param_set 5 depth 0.0556253
+    param_set 5 freq 2.2897
+    connect effect_4:out effect_5:in
+    connect effect_4:out1 effect_5:in1
+    bypass 5 1
+    add http://guitarix.sourceforge.net/plugins/gx_reverb_stereo#_reverb_stereo 6
+    param_set 6 dry_wet 56.5
+    param_set 6 lfo 2.275
+    param_set 6 roomsize 0.655
+    param_set 6 damp 0.52
+    param_set 6 mode "linear"
+    connect effect_5:out effect_6:in
+    connect effect_5:out1 effect_6:in1
+    
+    connect system:capture_1 effect_1:in
+    connect effect_6:out system:playback_1
+    connect effect_6:out1 system:playback_2
+}
+
+# on_leave defines a block of commands to send to mod-host when we a different 
+# configuration is selected.
+on_leave {
+    remove 1
+    remove 2
+    remove 3
+    remove 4
+    remove 5
+    remove 6
+
+    disconnect system:capture_1 effect_1:in
+    disconnect effect_6:out system:playback_1
+    disconnect effect_6:out1 system:playback_2
+}
