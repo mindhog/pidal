@@ -1,10 +1,11 @@
 """Hog 1 Pidal User interface."""
 
 import attr
-from engine import Config, Engine, ProcessManager
+from engine import Config, Engine, ProcessManager, FSIO
 from typing import Any, Callable, List, Optional
 from tkinter import Button, Frame, Label, Listbox, Tk, Toplevel, BOTH, END, \
     NSEW, W
+from RPi import GPIO
 import subprocess
 from tkinter.font import Font
 
@@ -197,6 +198,13 @@ class Home(Frame):
 
 class Screen(Tk):
 
+    def simulate_fs_pressed(self, index: int) -> None:
+        Engine.get_instance().footswitch_pressed(index)
+        GPIO.clear_gpios.add(FSIO[index])
+
+    def simulate_fs_released(self, index: int) -> None:
+        GPIO.clear_gpios.remove(FSIO[index])
+
     def __init__(self):
         super().__init__()
         self.rowconfigure(0, weight=1)
@@ -204,6 +212,14 @@ class Screen(Tk):
         self.home = Home(self)
         self.set_parcel(self.home)
         self.bind('<Escape>', self.home.show_menu)
+        self.bind('<KeyPress-F1>', lambda e: self.simulate_fs_pressed(0))
+        self.bind('<KeyRelease-F1>', lambda e: self.simulate_fs_released(0))
+        self.bind('<KeyPress-F2>', lambda e: self.simulate_fs_pressed(1))
+        self.bind('<KeyRelease-F2>', lambda e: self.simulate_fs_released(1))
+        self.bind('<KeyPress-F3>', lambda e: self.simulate_fs_pressed(2))
+        self.bind('<KeyRelease-F3>', lambda e: self.simulate_fs_released(2))
+        self.bind('<KeyPress-F4>', lambda e: self.simulate_fs_pressed(3))
+        self.bind('<KeyRelease-F4>', lambda e: self.simulate_fs_released(3))
 #        self.home.grid(row=0, column=0, sticky=NSEW)
 #        self.home.pack(expand=True, fill=BOTH)
 
@@ -225,5 +241,9 @@ class Screen(Tk):
         win.tkraise()
 
 if __name__ == '__main__':
-    main = Screen()
-    main.mainloop()
+    try:
+        main = Screen()
+        main.mainloop()
+    finally:
+        print('Pidal UI thread shutting down.')
+
