@@ -398,6 +398,7 @@ class NewConfig(ConfigFramework):
         )
 
     def on_enter(self):
+        super().on_enter()
         engine.midi_connect('pidal/to_rak',
                             'rakarrack-plus/rakarrack-plus IN')
 

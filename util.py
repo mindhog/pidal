@@ -132,6 +132,7 @@ class ConfigFramework(Config):
         assert(len(buttons) == 4)
         self.buttons = [button.text for button in buttons]
 
+    def on_enter(self):
         for index, button in enumerate(buttons):
             callback = button.make_callback(index)
             if index == 2:
