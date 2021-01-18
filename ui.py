@@ -71,14 +71,16 @@ class Menu(Listbox):
         if cur < len(self.data) - 1:
             self.selection_clear(cur)
             self.selection_set(cur + 1)
+            self.see(cur + 1)
 
     def select_prev(self):
         cur = self.__get_selection()
         if cur:
             self.selection_clear(cur)
             self.selection_set(cur - 1)
+            self.see(cur - 1)
 
-    def close(self):
+    def close(self, event=None):
         engine = Engine.get_instance()
         engine.pop_switch_configs()
         engine.pop_fs()
