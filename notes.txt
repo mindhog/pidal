@@ -83,10 +83,10 @@ Install x11-xserver-utils (for xrdb):
 
     $ sudo apt-get install x11-xserver-utils
 
-Setting up guitarix/rakarrack
-=============================
+Setting up guitarix/rakarrack and Calf Plugins
+==============================================
 
-    $ apt-get install guitarix rakarrack
+    $ apt-get install guitarix calf-plugins rakarrack
 
 Don't actually install rakarrack, see my notes below under "setting up my
 code".
