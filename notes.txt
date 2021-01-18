@@ -125,7 +125,8 @@ Setting up my code
     $ apt-get install libxpm-dev libfltk1.3-dev libjack-jackd2-dev \
       libsndfile1-dev libsamplerate0-dev libasound2-dev libxft-dev \
       libfftw3-dev lv2-dev
-    $ git clone ssh://192.168.1.11/home/mmuller/w2/rakarrack-plus
+    $ git clone https://github.com/mindhog/rakarrack-plus/
+
 mkdir build, cd build, cmake -DCMAKE_INSTALL_PREFIX=/usr .., make -j4
 
     Configure lingot to run on jack on a server, then copy
