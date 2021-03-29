@@ -218,7 +218,6 @@ class ModConfig(Config):
                 num = int(cmd[1])
                 button_name = cmd[2]
                 action = parse_cmd_or_block(cmd[3:])
-                print(f'index is {num}')
                 buttons[num] = button_name
                 actions[num] = action
             elif cmd[0] == 'on_enter':
@@ -409,6 +408,8 @@ simple = GuitarixSimple()
 engine.set_config(simple)
 engine.add_config(simple)
 engine.add_config(ModConfig.read_file('SimpleClean.modcfg'))
+engine.add_config(ModConfig.read_file('MesaStomp.modcfg'))
+engine.add_config(ModConfig.read_file('ScreamingBird.modcfg'))
 engine.add_config(FirstConfig())
 engine.add_config(NewConfig())
 
