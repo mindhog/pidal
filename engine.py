@@ -215,8 +215,8 @@ class Engine:
     def wait_for_midi(self, port_name: str, timeout: float = 5.0):
         end_time = time.time() + timeout
         while time.time() < end_time:
-            for port in self.jack.get_ports():
-                if port.name == port_name:
+            for port in self.seq.iterPortInfos():
+                if port.fullName == port_name:
                     return
             time.sleep(0.1)
         raise Exception('timed out waiting for %s' % port_name)
@@ -237,9 +237,12 @@ class Engine:
         assert s
         self.seq.connect(s, d)
 
-    def add_config(self, config: Config) -> None:
+    def add_config(self, config: Config, index: Optional[int] = None) -> None:
         """Add a new config to the set of configs for the engine."""
-        self.configs.append(config)
+        if index is None:
+            self.configs.append(config)
+        else:
+            self.configs.insert(index, config)
 
     def get_all_configs(self) -> Tuple[Config]:
         """Returns the list of configs."""
