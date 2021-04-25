@@ -72,6 +72,8 @@ engine = Engine.get_instance()
 
 gtx_port = engine.seq.createOutputPort('to_gtx')
 rak_port = engine.seq.createOutputPort('to_rak')
+zyn_port = engine.seq.createOutputPort('to_zyn')
+
 
 # Start by loading guitarix.
 gtx = ProcessManager(Popen(['guitarix', '-N']))
@@ -351,35 +353,67 @@ class RakBizConfig(RakConfig):
         engine.set_program(rak_port, bank, prog)
         engine.seq.sendEvent(ControlChange(0, 0, 7, vol), rak_port)
 
-class RakFunConfig(RakConfig):
+class RakStdConfig(RakConfig):
+    """Normal rak configuration.
+
+    Derived classes must specify a constant PRESETS containing a list of
+    (name, bank, program, volume) tuples.
+
+    They may also override INITIAL_PRESET to indicate the index of the preset
+    configured upon entry.
+    """
+
+    INITIAL_PRESET = 0
+
     def __init__(self):
-        super().__init__('Rak Fun')
-        self.buttons = ['Fuzz', 'Bass', 'Angl', 'Pit']
+        super().__init__(self.NAME)
+        self.buttons = [p[0] for p in self.PRESETS]
 
     def set_presets(self):
-        # 6 - tight rock
-        # 29 - bass
-        # 32 - Angel's chorus,
-        # 8 - Summer by the pit
-        for (fs, prog) in enumerate([6, 29, 32, 8]):
-            engine.register_footswitch(fs,
-                                       self.make_program_switcher(0, prog, fs))
+        for (fs, (bank, prog)) in \
+                enumerate([(p[1], p[2]) for p in self.PRESETS]):
+            engine.register_footswitch(
+                fs, self.make_program_switcher(bank, prog, fs)
+            )
+
+        b2 = self.PRESETS[2]
+        b3 = self.PRESETS[3]
         engine.register_footswitch(
             2,
-            double_press(self.make_program_switcher(0, 32, 2),
+            double_press(self.make_program_switcher(b2[1], b2[2], 2),
                          show_config_list,
                          3
                          )
         )
         engine.register_footswitch(
             3,
-            double_press(self.make_program_switcher(0, 8, 3),
+            double_press(self.make_program_switcher(b3[1], b3[2], 3),
                          show_config_list,
                          2
                          )
         )
         self.controller.activate(engine, 0)
-        engine.set_program(rak_port, 0, 6)
+        initial = self.PRESETS[self.INITIAL_PRESET]
+        engine.set_program(rak_port, initial[1], initial[2])
+        engine.seq.sendEvent(ControlChange(0, 0, 7, initial[3]), rak_port)
+
+class RakFunConfig(RakStdConfig):
+    NAME = 'Rak Fun'
+    PRESETS = [
+        ('Fuzz', 0, 6, 63),     # Tight Rock
+        ('Bass', 0, 29, 63),    # Bass
+        ('Angl', 0, 32, 63),    # Angel's Chorus
+        ('Pit', 0, 8, 63),      # Summer by the Pit
+    ]
+
+class RakAccConfig(RakStdConfig):
+    NAME = 'Rak Acoustic'
+    PRESETS = [
+        ('12St', 1, 33, 70),    # 12 String
+        ('AcBr', 1, 17, 63),    # Acoustic Bright
+        ('AcCh', 1, 14, 63),    # Acoustic Chorus
+        ('ClCh', 1, 20, 63),    # Clean Chord
+    ]
 
 def act(program: int) -> None:
     def enable():
@@ -404,14 +438,68 @@ class NewConfig(ConfigFramework):
         engine.jack_connect('system:capture_1', 'rakarrack-plus:in_1')
         engine.jack_connect('system:capture_1', 'rakarrack-plus:in_2')
 
+class ZynConfig(ConfigFramework):
+    PRESETS = (
+        (0, 33),        # 0 - Arp, Sequence 2
+
+        (10, 2),        # 1 - Space Synth
+        (19, 3),        # 2 - DX Rhodes 4
+        (4, 26),        # 3 - Sweep Synth
+        (4, 39),        # 4 - Master Synth Low
+        (4, 40),        # 5 - Master Synth High
+        (10, 11),       # 6 - Space Choir 2
+        (10, 32),       # 7 - Impossible Dream 1
+        (10, 42),       # 8 - Rhodes Space 2
+        (13, 1),        # 9 - Bells 1
+        (24, 111),      # 10 - Fat Saw
+        (9, 64),        # 11 - Dream of the saw
+
+        (15, 10),       # 12 - Organ 11
+        (16 , 8),       # 13 - Resonance pad 2
+        (8, 0),         # 14 - Drums
+        (3, 64),        # 15 - Vocal Morph 1
+    )
+
+
+    def __init__(self):
+        def act(bank: int, program: int):
+            def enable():
+                print(f'setting program bank = {bank}, program = {program}')
+                engine.set_program(zyn_port, bank * 128, program)
+                engine.seq.sendEvent(ControlChange(0, 0, 7, 64), zyn_port)
+            return Actuator(enable, lambda: None)
+
+        super().__init__(
+            'ZynConfig',
+            FlagSetController(['1', '2', '4', '8'],
+                              [act(bank, prog) for bank, prog  in self.PRESETS]
+                              )
+        )
+
+    def on_enter(self):
+        self.zyn_proc = ProcessManager(Popen(['zynaddsubfx', '-U']))
+        engine.wait_for_jack('zynaddsubfx:out_1')
+        engine.wait_for_jack('zynaddsubfx:out_2')
+        engine.wait_for_midi('ZynAddSubFX/ZynAddSubFX')
+        engine.midi_connect('pidal/to_zyn', 'ZynAddSubFX/ZynAddSubFX')
+        engine.midi_connect('Q25/Q25 MIDI 1', 'ZynAddSubFX/ZynAddSubFX')
+        engine.jack_connect('zynaddsubfx:out_1', 'system:playback_1')
+        engine.jack_connect('zynaddsubfx:out_2', 'system:playback_2')
+        super().on_enter()
+
+    def on_leave(self):
+        super().on_leave()
+        self.zyn_proc = None
+
 simple = GuitarixSimple()
 engine.set_config(simple)
 engine.add_config(simple)
-engine.add_config(ModConfig.read_file('SimpleClean.modcfg'))
 engine.add_config(ModConfig.read_file('MesaStomp.modcfg'))
+engine.add_config(ModConfig.read_file('SimpleClean.modcfg'))
 engine.add_config(ModConfig.read_file('ScreamingBird.modcfg'))
 engine.add_config(FirstConfig())
 engine.add_config(NewConfig())
+engine.add_config(ZynConfig())
 
 # Wait for rakarrack asynchronously (since for some reason it takes a really
 # long time to start) and then register the configs for it.
@@ -421,7 +509,8 @@ def wait_for_rak():
     engine.wait_for_jack('rakarrack-plus:in_2')
     engine.wait_for_jack('rakarrack-plus:out_1')
     engine.wait_for_jack('rakarrack-plus:out_2')
-    engine.add_config(RakFunConfig())
+    engine.add_config(RakAccConfig(), index=1)
+    engine.add_config(RakFunConfig(), index=2)
     engine.add_config(RakBizConfig())
 
 thread = threading.Thread(target=wait_for_rak)
