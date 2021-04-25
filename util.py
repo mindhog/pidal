@@ -127,13 +127,13 @@ class ConfigFramework(Config):
             buttons: An array of exactly four buttons.
         """
         super().__init__(name)
-        buttons = list(itertools.chain.from_iterable(
+        self.button_objects = list(itertools.chain.from_iterable(
             group.expand_buttons() for group in button_groups))
-        assert(len(buttons) == 4)
-        self.buttons = [button.text for button in buttons]
+        assert(len(self.button_objects) == 4)
+        self.buttons = [button.text for button in self.button_objects]
 
     def on_enter(self):
-        for index, button in enumerate(buttons):
+        for index, button in enumerate(self.button_objects):
             callback = button.make_callback(index)
             if index == 2:
                 callback = double_press(callback, show_config_list, 3)
