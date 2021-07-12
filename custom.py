@@ -5,7 +5,7 @@ from modhost import ModHost
 from subprocess import Popen
 import threading
 from typing import Callable, List, Optional
-from engine import Config, Engine, ProcessManager
+from engine import Config, Engine, InvalidPortError, ProcessManager
 from util import Actuator, ConfigFramework, FlagSetController
 
 print('in custom')
@@ -482,7 +482,16 @@ class ZynConfig(ConfigFramework):
         engine.wait_for_jack('zynaddsubfx:out_2')
         engine.wait_for_midi('ZynAddSubFX/ZynAddSubFX')
         engine.midi_connect('pidal/to_zyn', 'ZynAddSubFX/ZynAddSubFX')
-        engine.midi_connect('Q25/Q25 MIDI 1', 'ZynAddSubFX/ZynAddSubFX')
+        try:
+            # Try the M-Audio first
+            engine.midi_connect(
+                'USB Keystation 88es/USB Keystation 88es MIDI 1',
+                'ZynAddSubFX/ZynAddSubFX'
+            )
+        except InvalidPortError:
+            # Fall through to the Alesis Q25.
+            engine.midi_connect('Q25/Q25 MIDI 1', 'ZynAddSubFX/ZynAddSubFX')
+
         engine.jack_connect('zynaddsubfx:out_1', 'system:playback_1')
         engine.jack_connect('zynaddsubfx:out_2', 'system:playback_2')
         super().on_enter()

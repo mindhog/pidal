@@ -46,6 +46,9 @@ class Config:
         """
         pass
 
+class InvalidPortError(Exception):
+    """Raised when a specified port does not exist."""
+
 # Footswitch GPIO port numbers.
 FSIO = [16, 20, 21, 26]
 
@@ -234,7 +237,8 @@ class Engine:
     def midi_connect(self, src_port: str, dst_port: str) -> None:
         s = self.seq.getPort(src_port)
         d = self.seq.getPort(dst_port)
-        assert s
+        if not s:
+            raise InvalidPortError(f'port {src_port} does not exist')
         self.seq.connect(s, d)
 
     def add_config(self, config: Config, index: Optional[int] = None) -> None:
