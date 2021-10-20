@@ -4,6 +4,7 @@ from midi import ControlChange, ProgramChange
 from modhost import ModHost
 from subprocess import Popen
 import threading
+import time
 from typing import Callable, List, Optional
 from engine import Config, Engine, InvalidPortError, ProcessManager
 from util import Actuator, ConfigFramework, FlagSetController
@@ -84,7 +85,14 @@ engine.wait_for_jack('gx_head_fx:out_1')
 # Load mod-host
 modd = ProcessManager(Popen(['mod-host', '-n']))
 engine.wait_for_jack('mod-host:midi_in')
-mod_host = ModHost()
+for x in range(3):
+    try:
+        mod_host = ModHost()
+        break
+    except ConnectionRefusedError:
+        time.sleep(1)
+else:
+    print('Failed to connect to mod-host')
 
 # load Rakarrack and disconnect it from input.  The "-p 1" combined with -n
 # brings jack up in "FX On" mode.
@@ -482,15 +490,22 @@ class ZynConfig(ConfigFramework):
         engine.wait_for_jack('zynaddsubfx:out_2')
         engine.wait_for_midi('ZynAddSubFX/ZynAddSubFX')
         engine.midi_connect('pidal/to_zyn', 'ZynAddSubFX/ZynAddSubFX')
-        try:
-            # Try the M-Audio first
-            engine.midi_connect(
-                'USB Keystation 88es/USB Keystation 88es MIDI 1',
-                'ZynAddSubFX/ZynAddSubFX'
-            )
-        except InvalidPortError:
-            # Fall through to the Alesis Q25.
-            engine.midi_connect('Q25/Q25 MIDI 1', 'ZynAddSubFX/ZynAddSubFX')
+
+        # try all three keyboards.
+        keyboards = [
+            'USB Keystation 88es/USB Keystation 88es MIDI 1',
+            'Impact LX49+/Impact LX49+ MIDI 1',
+            'Q25/Q25 MIDI 1'
+        ]
+        for keyboard in keyboards:
+            try:
+                engine.midi_connect(keyboard, 'ZynAddSubFX/ZynAddSubFX')
+                print(f'using {keyboard}')
+                break
+            except InvalidPortError:
+                pass
+        else:
+            print('Could not find any keyboards')
 
         engine.jack_connect('zynaddsubfx:out_1', 'system:playback_1')
         engine.jack_connect('zynaddsubfx:out_2', 'system:playback_2')
@@ -504,6 +519,7 @@ simple = GuitarixSimple()
 engine.set_config(simple)
 engine.add_config(simple)
 engine.add_config(ModConfig.read_file('MesaStomp.modcfg'))
+engine.add_config(ModConfig.read_file('MesaStomp2.modcfg'))
 engine.add_config(ModConfig.read_file('SimpleClean.modcfg'))
 engine.add_config(ModConfig.read_file('ScreamingBird.modcfg'))
 engine.add_config(FirstConfig())

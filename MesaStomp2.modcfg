@@ -1,0 +1,70 @@
+name Mesa Stomp 2
+
+pedal 0 Dist 2
+pedal 1 Wah 14
+pedal 2 Rev 8
+pedal 3 OD 23
+
+on_enter {
+    feature_enable processing 0
+    transport 0 4.000000 120.000000
+    remove 9993
+    remove -1
+    state_tmpdir /home/mmuller/w2/mod-ui/data/pedalboard-tmp-data
+    feature_enable aggregated-midi 1
+    transport 0 4.000000 120.000000
+    add http://guitarix.sourceforge.net/plugins/gx_amp_stereo#GUITARIX_ST 1
+    param_set 1 MasterGain 8.750000
+    param_set 1 PreGain 1.026786
+    param_set 1 Presence 8.422991
+    param_set 1 t_model 9.000000
+    add http://calf.sourceforge.net/plugins/Gate 21
+    param_set 21 release 5.195108
+    param_set 21 threshold 0.000977
+    add https://github.com/Stazed/rakarrack-plus#MuTroMojo 14
+    bypass 14 1
+    preset_load 14 https://github.com/Stazed/rakarrack-plus#MuTroMojo:preset:quack_quack
+    param_set 14 SENSE 40.000000
+    param_set 14 SMOOTH 32.000000
+    param_set 14 MINFREQ 400.000000
+    add https://github.com/Stazed/rakarrack-plus#Overdrive 23
+    bypass 23 1
+    preset_load 23 https://github.com/Stazed/rakarrack-plus#Overdrive:preset:overdrive_1
+    param_set 23 HPF 20.000000
+    param_set 23 DRYWET 60.000000
+    param_set 23 DRIVE 41.000000
+    param_set 23 TYPE 1.000000
+    param_set 23 LPF 4804.000000
+    param_set 23 STEREO 1.000000
+    param_set 23 LEVEL 35.000000
+    add https://github.com/Stazed/rakarrack-plus#StompBox 2
+    bypass 2 1
+    param_set 2 LEVEL 21.000000
+    add http://guitarix.sourceforge.net/plugins/gx_reverb_stereo#_reverb_stereo 8
+    bypass 8 1
+    connect effect_2:OUTPUT_L effect_14:INPUT_L
+    connect effect_1:out effect_8:in
+    connect effect_8:out1 system:playback_2
+    connect effect_8:out system:playback_1
+    connect system:capture_1 effect_21:in_r
+    connect effect_1:out1 effect_8:in1
+    connect effect_2:OUTPUT_R effect_14:INPUT_R
+    connect effect_14:OUTPUT_R effect_23:INPUT_R
+    connect system:capture_1 effect_21:in_l
+    connect effect_14:OUTPUT_L effect_23:INPUT_L
+    connect effect_23:OUTPUT_L effect_1:in
+    connect effect_23:OUTPUT_R effect_1:in1
+    connect effect_21:out_l effect_2:INPUT_L
+    connect effect_21:out_r effect_2:INPUT_R
+    state_load /home/mmuller/.pedalboards/Mesa_Stomp_2.pedalboard
+    feature_enable processing 2
+    transport_sync none
+}
+
+on_leave {
+    disconnect effect_8:out system:playback_1
+    disconnect effect_8:out1 system:playback_2
+    disconnect system:capture_1 effect_2:INPUT_L
+    disconnect system:capture_1 effect_2:INPUT_R
+}
+
