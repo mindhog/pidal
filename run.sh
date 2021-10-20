@@ -1,6 +1,11 @@
-#!/bin/sh
+#!/bin/bash
 
 export DISPLAY=:0
+
+# Number of jack periods (frames between process calls) to use.
+# 128 would be better, but that doesn't work well with multiple effects on
+# mod-host.
+export PERIODS=256
 
 # Wait for the xserver to come up.
 while ! xset q >/dev/null 2>&1; do
@@ -19,16 +24,31 @@ setterm -blank 0 -powersave off -powerdown 0 </dev/tty1
     done
 )&
 
-# We have to start jack before the engine.  We may want to move this out of
-# here when we deal with multiple devices, buf for now this is expedient.
-jackd -d alsa -d hw:CARD=S3,DEV=0 -p 128 &
-jack_pid=$?
+# Source all of the scripts in the init.d directory.
+for file in init.d/*; do
+    . $file
+done
+
+# If we haven't yet initialized jackd, do so now with the S3 Card.
+echo "jack pid before ours is $jack_pid"
+if [ -z "$jack_pid" ]; then
+    start_jack() {
+        jackd -d alsa -d hw:CARD=S3,DEV=0 -p $PERIODS &
+        jack_pid=$!
+    }
+    start_jack
+fi
 
 # Start rak (since it takes a really long time to startup)
 if ! jack_lsp | grep rakarrack >/dev/null; then
     rakarrack-plus -n -p 6 &
 fi
 
+echo "jack pid is $jack_pid"
 while true; do
     python3 main.py
+    echo "killing $jack_pid"
+    kill -9 $jack_pid
+    sleep 1
+    start_jack
 done

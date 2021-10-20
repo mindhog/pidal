@@ -1,0 +1,11 @@
+# Behringer Euphoria 4x4
+
+if aplay -L | grep CARD=U192k && aplay -L | grep 'UMC404HD 192k, USB Audio'
+then
+    start_jack() {
+        jackd -d alsa -D -dhw:CARD=U192k,DEV=0 -r44100 -p $PERIODS -n3 &
+        jack_pid=$!
+    }
+    start_jack
+fi
+
