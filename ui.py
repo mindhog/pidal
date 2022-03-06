@@ -148,19 +148,28 @@ class FSButton(Button):
 
 class Home(Frame):
 
+    def _add_top_button(self, name: str, command: Callable[[], None],
+                        column: int):
+        btn = FSButton(self, name)
+        btn.configure(command=command)
+        btn.grid(row=0, column=column)
+
     def __init__(self, top: Toplevel):
         super().__init__(top)
+        self._add_top_button('Menu', self.show_menu, 0)
+        self._add_top_button('Tuner',
+                             lambda: tuner_selected(self.winfo_toplevel()), 1)
         self.title = Label(self, text='Config Name',
                            font=Font(family='Roboto', size=72)
                            )
-        self.title.grid(row=0, column=0, columnspan=4, sticky=NSEW)
-        self.rowconfigure(0, weight=1)
+        self.title.grid(row=1, column=0, columnspan=4, sticky=NSEW)
+        self.rowconfigure(1, weight=1)
 
         self.buttons = []
         for i, name in enumerate(('Dist', 'Wah', 'Phase', 'Lead')):
             btn = FSButton(self, name)
             self.buttons.append(btn)
-            btn.grid(row=1, column=i, sticky=NSEW)
+            btn.grid(row=2, column=i, sticky=NSEW)
             self.columnconfigure(i, weight=1, uniform=True)
 
         engine = Engine.get_instance()
