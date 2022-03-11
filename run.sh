@@ -1,6 +1,8 @@
 #!/bin/bash
 
-export DISPLAY=:0
+if [ -z "$DISPLAY" ]; then
+    export DISPLAY=:0
+fi
 
 # Number of jack periods (frames between process calls) to use.
 # 128 would be better, but that doesn't work well with multiple effects on
@@ -42,6 +44,7 @@ fi
 # Start rak (since it takes a really long time to startup)
 if ! jack_lsp | grep rakarrack >/dev/null; then
     rakarrack-plus -n -p 6 &
+    rak_pid=$!
 fi
 
 echo "jack pid is $jack_pid"
