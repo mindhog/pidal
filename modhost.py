@@ -33,7 +33,7 @@ class ModHost:
                 self._read_response()
 
     def param_set(self, id: int, symbol: str, value: float) -> None:
-        self.socket.send(f'param_set {id} {symbol} {value}\n')
+        self.socket.send(f'param_set {id} {symbol} {value}\n'.encode())
         self._read_response()
 
     def param_get(self, id: int, symbol: str) -> float:
