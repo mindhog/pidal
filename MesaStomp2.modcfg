@@ -5,6 +5,9 @@ pedal 1 Wah 14
 pedal 2 Rev 8
 pedal 3 OD 23
 
+controller RightPedal 1 MasterGain -20 20
+controller LeftPedal 2 LEVEL 0 127
+
 on_enter {
     feature_enable processing 0
     transport 0 4.000000 120.000000
