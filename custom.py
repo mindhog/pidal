@@ -1,11 +1,16 @@
 
+from __future__ import annotations
+
 import abc
+from ext.fcb1010 import config_change, footswitch_actuator, \
+    init as init_fcb1010, FCB1010Config, ProgramConfig
+from ext.nano import init as init_nano
 from midi import ControlChange, ProgramChange
 from modhost import ModHost
 from subprocess import Popen
 import threading
 import time
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 from engine import Config, Engine, InvalidPortError, ProcessManager
 from util import Actuator, ConfigFramework, FlagSetController
 
@@ -142,18 +147,29 @@ class ModConfig(Config):
     Commands are:
         name <words>...
         pedal <index> <name> <action>
+        controller <name> <id> <param> <min> <max>
     """
+
+    ControllerMap = Dict[str, Tuple[int, str, float, float]]
 
     def __init__(self, name: str, buttons: List[str],
                  actions: List[Optional[str]],
                  on_enter: Optional[str],
-                 on_leave: Optional[str]) -> None:
+                 on_leave: Optional[str],
+                 controllers: ModConfig.ControllerMap) -> None:
         super().__init__(name)
         self.buttons = buttons
         self.actions = actions
         self.button_states = [False] * 4
         self.on_enter_block = on_enter
         self.on_leave_block = on_leave
+
+        # Mapping from controller name to id, param, min, max
+        self.controllers: ModConfig.ControllerMap  = controllers
+
+    def with_fcb1010(self, config: FCB1010Config) -> ModConfig:
+        config.init(self)
+        return self
 
     def on_button(self, index: int, pressed: bool) -> None:
         # Currently assuming that actions are just effect identifiers to
@@ -193,6 +209,14 @@ class ModConfig(Config):
         if self.on_leave_block:
             mod_host.send_block(self.on_leave_block)
 
+    def set_controller(self, name: str, value: int):
+        try:
+            id, param, min, max = self.controllers.get(name)
+            scaled_value = min + value / 127 * (max - min)
+            mod_host.param_set(id, param, scaled_value)
+        except KeyError as ex:
+            return
+
     @classmethod
     def read_file(self, filename: str) -> 'ModConfig':
         src = open(filename)
@@ -202,6 +226,7 @@ class ModConfig(Config):
         actions = [None] * 4
         on_enter = None
         on_leave = None
+        controllers : ModConfig.ControllerMap = {}
 
         def read_block():
             result = []
@@ -230,6 +255,13 @@ class ModConfig(Config):
                 action = parse_cmd_or_block(cmd[3:])
                 buttons[num] = button_name
                 actions[num] = action
+            elif cmd[0] == 'controller':
+                controller = cmd[1]
+                id = int(cmd[2])
+                param = cmd[3]
+                min = float(cmd[4])
+                max = float(cmd[5])
+                controllers[controller] = (id, param, min, max)
             elif cmd[0] == 'on_enter':
                 on_enter = parse_cmd_or_block(cmd[1:])
             elif cmd[0] == 'on_leave':
@@ -237,7 +269,8 @@ class ModConfig(Config):
             else:
                 raise Exception(f'Unknown command: {cmd[0]}')
 
-        return ModConfig(name, buttons, actions, on_enter, on_leave)
+        return ModConfig(name, buttons, actions, on_enter, on_leave,
+                         controllers)
 
 class GuitarixSimple(Config):
 
@@ -245,6 +278,16 @@ class GuitarixSimple(Config):
         super().__init__('Gtx Simple')
         self.buttons = ['Dist', 'Chorus', 'Wah', 'Over']
         self.states = {11: False, 13: False, 14: False, 12: False}
+
+    def with_fcb1010(self, config: FCB1010Config) -> GuitarixSimple:
+        config.init(self)
+        return self
+
+    def set_controller(self, controller: str, value: int):
+        if controller in ('MasterVol', 'RightPedal'):
+            engine.seq.sendEvent(ControlChange(0, 0, 7, value), gtx_port)
+        elif controller in ('DistGain', 'LeftPedal'):
+            engine.seq.sendEvent(ControlChange(0, 0, 27, value), gtx_port)
 
     def switch(self, pressed: bool, cc: int, index: int) -> None:
         if pressed:
@@ -290,6 +333,16 @@ class RakConfig(Config, metaclass=abc.ABCMeta):
         super().__init__(name)
         self.last_button = 0
         self.controller = RadioController()
+
+    def with_fcb1010(self, config: FCB1010Config) -> RakStdConfig:
+        config.init(self)
+        return self
+
+    def set_controller(self, controller: str, value: int):
+        if controller in ('MasterVol', 'RightPedal'):
+            engine.seq.sendEvent(ControlChange(0, 0, 7, value), rak_port)
+        elif controller in ('DistGain', 'LeftPedal'):
+            engine.seq.sendEvent(ControlChange(0, 0, 27, value), rak_port)
 
     def make_program_switcher(self, bank, program, index):
         def switcher(pressed: bool) -> None:
@@ -515,12 +568,26 @@ class ZynConfig(ConfigFramework):
         super().on_leave()
         self.zyn_proc = None
 
-simple = GuitarixSimple()
+fc = FCB1010Config(
+    programs=[
+        ProgramConfig(0, footswitch_actuator(0)),
+        ProgramConfig(1, footswitch_actuator(1)),
+        ProgramConfig(2, footswitch_actuator(2)),
+        ProgramConfig(3, footswitch_actuator(3)),
+        ProgramConfig(4, config_change),
+    ]
+)
+
+simple = GuitarixSimple().with_fcb1010(fc)
 engine.set_config(simple)
 engine.add_config(simple)
 engine.add_config(ModConfig.read_file('MesaStomp.modcfg'))
-engine.add_config(ModConfig.read_file('MesaStomp2.modcfg'))
-engine.add_config(ModConfig.read_file('SimpleClean.modcfg'))
+engine.add_config(
+    ModConfig.read_file('MesaStomp2.modcfg').with_fcb1010(fc.offset(10))
+)
+engine.add_config(
+    ModConfig.read_file('SimpleClean.modcfg').with_fcb1010(fc.offset(20))
+)
 engine.add_config(ModConfig.read_file('ScreamingBird.modcfg'))
 engine.add_config(FirstConfig())
 engine.add_config(NewConfig())
@@ -534,12 +601,15 @@ def wait_for_rak():
     engine.wait_for_jack('rakarrack-plus:in_2')
     engine.wait_for_jack('rakarrack-plus:out_1')
     engine.wait_for_jack('rakarrack-plus:out_2')
-    engine.add_config(RakAccConfig(), index=1)
-    engine.add_config(RakFunConfig(), index=2)
+    engine.add_config(RakAccConfig().with_fcb1010(fc.offset(90)), index=1)
+    engine.add_config(RakFunConfig().with_fcb1010(fc.offset(80)), index=2)
     engine.add_config(RakBizConfig())
 
 thread = threading.Thread(target=wait_for_rak)
 thread.setDaemon(True)
 thread.start()
 
+# Initialize special hardware.
+init_fcb1010()
+init_nano()
 
