@@ -1,10 +1,13 @@
 """Hog 1 Pidal engine."""
 
+from __future__ import annotations
+
+import abc
 import amidi
 import asyncio
 from importlib import import_module
 import jack
-from midi import ControlChange, ProgramChange
+from midi import ControlChange, Event, ProgramChange
 from subprocess import Popen
 import threading
 import time
@@ -20,7 +23,7 @@ class ProcessManager:
         self.__proc.kill()
         self.__proc.wait()
 
-_engine : 'Engine' = None
+_engine : Engine = None
 
 class Config:
 
@@ -38,13 +41,31 @@ class Config:
         pass
 
     def on_leave(self):
-        """Called when the config is selected.
+        """Called when the config is active and a different config is selected.
 
         Note that this is probably temporary: I really want there to be an
         engine state vector where the individual items are
         activated/deactivated when we enter or leave.
         """
         pass
+
+    def set_controller(self, controller: str, value: int) -> None:
+        """Called by extensions to set the value of a controller.
+
+        Controller names are specific to the extension.
+        """
+        pass
+
+class ExtensionConfig(metaclass=abc.ABCMeta):
+    """Interface for extensions."""
+
+    @abc.abstractmethod
+    def init(self, config: Config):
+        """Initialize the extension.
+
+        This should be called once at the initialization of the Config, before
+        it is registered with the Engine.
+        """
 
 class InvalidPortError(Exception):
     """Raised when a specified port does not exist."""
@@ -70,9 +91,17 @@ class Engine:
         self.configs = []
         self.cur_config = None
         self.subscriptions = {}
-        self.__async_thread = threading.Thread(target=self.__async_thread_func)
-        self.__async_thread.setDaemon(True)
-        self.__async_thread.start()
+        self.__midi_handlers = []
+        self.__async_thread = \
+            self.__start_daemon_thread(self.__async_thread_func)
+        self.__midi_input_thread = \
+            self.__start_daemon_thread(self.__midi_input_thread_func)
+
+    def __start_daemon_thread(self, func):
+        thread = threading.Thread(target=func)
+        thread.setDaemon(True)
+        thread.start()
+        return thread
 
     def __async_thread_func(self):
         asyncio.run(self.__fs_mon())
@@ -93,6 +122,17 @@ class Engine:
                         handler = self.__footswitches[i]
                         if handler:
                             handler(False)
+
+    def __midi_input_thread_func(self):
+        """The midi input thread.  We can't do async for this."""
+        while True:
+            event = self.seq.getEvent()
+            for handler in self.__midi_handlers:
+                try:
+                    if handler(event):
+                        break
+                except:
+                    pass
 
     def register_footswitch(self, footswitch: int,
                             callback: Callable[[bool], None]
@@ -123,6 +163,16 @@ class Engine:
             self.__footswitches[index](True)
             self.__fs_pressed[index] = True
         self.__last_press[index] = t
+
+    def emulate_footswitch(self, index: int, pressed: bool):
+        """Call the footswitch callback as if a footswitch had been
+        pressed/released.
+
+        Args:
+            index: button index
+            pressed: True if the button is pressed, false if released.
+        """
+        self.__footswitches[index](pressed)
 
     def is_fs_pressed(self, index: int) -> bool:
         """Returns true if the footswitch is currently pressed."""
@@ -254,6 +304,9 @@ class Engine:
 
     def set_config(self, config: Config) -> None:
         """Set the current config."""
+        # Don't bother with this if 'config' is already active.
+        if self.cur_config is config:
+            return
         if self.cur_config:
             self.cur_config.on_leave()
         self.cur_config = config
@@ -267,6 +320,26 @@ class Engine:
         handler = self.subscriptions.get(event)
         if handler:
             self.subscriptions[event](*args)
+
+    def add_midi_input_handler(self, handler: Callable[[Event],  bool]):
+        """Adds a new midi input handler.
+
+        The handler accepts an event and returns true if it has fully
+        processed the event, false if the event should be delegated to
+        subsequent handlers in the chain.
+        """
+        self.__midi_handlers.append(handler)
+
+    def remove_midi_input_handler(self, handler: Callable[[Event],  bool]):
+        """Remove the specified handler from the handler chain."""
+        self.__midi_handlers.remove(handler)
+
+    def set_controller(self, controller: str, value: int):
+        """Set the value of a controller.
+
+        This also translates the controller name per the config.
+        """
+        self.cur_config.set_controller(controller, value)
 
     @classmethod
     def get_instance(cls):
