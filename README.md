@@ -53,7 +53,11 @@ Raspberry Pi OS):
     $ python setup.py build
     ```
 
-5)  Edit [run.sh](run.sh) if you want to specify your soundcard.
+5)  Edit [run.sh](run.sh) if you want to specify your soundcard.  You can also
+    add a new shell script to the init.d directory that will allow you to plug
+    in alternate external soundcards and select the preferred one at runtime
+    (scripts in this directory are run in alphabetical order, first to define
+    `jack_pid` will pre-empt the others).
 
 At this point, if you run `run.sh` things should hopefully work (please open
 a bug report if it doesn't).  You should see a window displaying the initial
